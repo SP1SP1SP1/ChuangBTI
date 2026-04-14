@@ -1,67 +1,60 @@
-import { shuffle, insertAtRandom, insertAfter } from './utils.js'
+import { shuffle } from './utils.js'
 
 /**
- * 答题控制器
+ * 答题控制器 — 简化版：无特殊题插入
+ * @param {Object} questionsData { questions: [...] }
+ * @param {Object} config        config.json
+ * @param {Function} onComplete  (answers) => void
  */
-export function createQuiz(questions, config, onComplete) {
-  const mainQuestions = shuffle(questions.main)
-  const drinkGateQ1 = questions.special.find((q) => q.id === config.drinkGate.questionId)
-  const drinkGateQ2 = questions.special.find((q) => q.id === 'drink_gate_q2')
-
-  let queue = insertAtRandom(mainQuestions, drinkGateQ1)
+export function createQuiz(questionsData, config, onComplete) {
+  let queue = shuffle(questionsData.questions)
   let current = 0
   let answers = {}
-  let isDrunk = false
 
   const els = {
     fill: document.getElementById('progress-fill'),
     text: document.getElementById('progress-text'),
     qText: document.getElementById('question-text'),
     options: document.getElementById('options'),
+    prev: document.getElementById('btn-prev'),
   }
 
-  function totalCount() {
-    return queue.length
-  }
+  if (els.prev) els.prev.addEventListener('click', goPrev)
 
   function updateProgress() {
-    const pct = (current / totalCount()) * 100
+    const pct = (current / queue.length) * 100
     els.fill.style.width = pct + '%'
-    els.text.textContent = `${current} / ${totalCount()}`
+    els.text.textContent = `${current + 1} / ${queue.length}`
   }
 
   function renderQuestion() {
     const q = queue[current]
     els.qText.textContent = q.text
-
     els.options.innerHTML = ''
+    const picked = answers[q.id]
     q.options.forEach((opt) => {
       const btn = document.createElement('button')
       btn.className = 'btn btn-option'
+      if (picked !== undefined && picked === opt.value) btn.classList.add('selected')
       btn.textContent = opt.label
       btn.addEventListener('click', () => selectOption(q, opt))
       els.options.appendChild(btn)
     })
-
+    if (els.prev) els.prev.disabled = current === 0
     updateProgress()
+  }
+
+  function goPrev() {
+    if (current === 0) return
+    current--
+    renderQuestion()
   }
 
   function selectOption(question, option) {
     answers[question.id] = option.value
-
-    // 饭局门：如果选了应酬酒局（值同 config.drinkGate.triggerValue），插入追问
-    if (question.id === config.drinkGate.questionId && option.value === config.drinkGate.triggerValue) {
-      queue = insertAfter(queue, question.id, drinkGateQ2)
-    }
-
-    // 敬局型（DRUNK）检测
-    if (question.id === 'drink_gate_q2' && option.value === config.drinkGate.drunkTriggerValue) {
-      isDrunk = true
-    }
-
     current++
-    if (current >= totalCount()) {
-      onComplete(answers, isDrunk)
+    if (current >= queue.length) {
+      onComplete(answers)
     } else {
       renderQuestion()
     }
@@ -70,8 +63,7 @@ export function createQuiz(questions, config, onComplete) {
   function start() {
     current = 0
     answers = {}
-    isDrunk = false
-    queue = insertAtRandom(shuffle(questions.main), drinkGateQ1)
+    queue = shuffle(questionsData.questions)
     renderQuestion()
   }
 
